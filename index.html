@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confidant Studio — Confidential Report Builder</title>
+<style>
+  :root {
+    --bg: #0f0f12;
+    --surface: #17171b;
+    --surface2: #1e1e23;
+    --text: #f2f1ee;
+    --text-dim: #a0a0a8;
+    --gold: #c4a156;
+    --accent: #e8c97a;
+    --border-radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2.5rem 1rem 4rem;
+  }
+  .container { max-width: 1080px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 1.5rem; }
+  header .badge {
+    display: inline-block; margin-bottom: 14px; padding: 4px 14px; border: 1px solid var(--gold);
+    color: var(--gold); border-radius: 999px; font-size: 11px; letter-spacing: 1.5px;
+  }
+  header h1 { font-size: 2.5rem; font-weight: 700; color: var(--text); }
+  header h1 span { color: var(--gold); }
+  header p { color: var(--text-dim); max-width: 700px; margin: 0.8rem auto 0; font-size: 1.1rem; }
+  .free-link {
+    display: inline-block; margin-top: 14px; font-size: 12px; color: var(--text-dim);
+    text-decoration: underline;
+  }
+  .free-link:hover { color: var(--accent); }
+
+  .section { margin: 3rem 0; }
+  .section h2 { font-size: 1.5rem; color: var(--gold); margin-bottom: 1.2rem; text-align: center; }
+
+  .diff-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;
+  }
+  .diff-card {
+    background: var(--surface); border: 1px solid var(--surface2); border-radius: var(--border-radius);
+    padding: 1.2rem 1.4rem;
+  }
+  .diff-card h3 { font-size: 1rem; color: var(--text); margin-bottom: 0.4rem; }
+  .diff-card p { font-size: 0.9rem; color: var(--text-dim); }
+
+  .vs-table {
+    width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--border-radius);
+    overflow: hidden; font-size: 0.9rem;
+  }
+  .vs-table th, .vs-table td { padding: 12px 14px; border-bottom: 1px solid var(--surface2); text-align: center; }
+  .vs-table th:first-child, .vs-table td:first-child { text-align: left; color: var(--text-dim); }
+  .vs-table th { color: var(--gold); font-size: 0.85rem; }
+  .vs-table .us { color: var(--accent); font-weight: 600; }
+  .vs-table td.no { color: #7a7a7a; }
+
+  .pricing-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.2rem;
+  }
+  .tier {
+    background: var(--surface); border: 1px solid var(--surface2); border-radius: 16px;
+    padding: 1.6rem 1.4rem; display: flex; flex-direction: column;
+  }
+  .tier.featured { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .tier .tag {
+    font-size: 10px; letter-spacing: 1px; color: var(--gold); text-transform: uppercase; margin-bottom: 6px;
+  }
+  .tier h3 { font-size: 1.2rem; margin-bottom: 4px; }
+  .tier .price { font-size: 2rem; font-weight: 700; color: var(--accent); margin: 8px 0 4px; }
+  .tier .price small { font-size: 0.9rem; color: var(--text-dim); font-weight: 400; }
+  .tier ul { list-style: none; margin: 1rem 0; flex-grow: 1; }
+  .tier li { font-size: 0.85rem; color: var(--text-dim); padding: 5px 0; padding-left: 18px; position: relative; }
+  .tier li::before { content: "✓"; position: absolute; left: 0; color: var(--gold); }
+  .tier .buy-cta { text-align: center; margin-top: auto; }
+  .tier .buy-cta img { max-width: 100%; }
+
+  .who-for, .lifetime-note {
+    background: var(--surface); border-radius: 16px; padding: 1.6rem 2rem; margin: 2rem 0;
+    border: 1px solid var(--surface2);
+  }
+  .who-for h2 { margin-bottom: 1rem; font-size: 1.3rem; color: var(--gold); text-align: left; }
+  .who-for p { color: var(--text-dim); }
+
+  footer { border-top: 1px solid var(--surface2); padding: 32px 0; color: var(--text-dim); font-size: 11px; text-align: center; margin-top: 24px; }
+  @media (max-width: 700px) { header h1 { font-size: 1.9rem; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <span class="badge">CONFIDENTIAL DOCUMENT TOOLING</span>
+    <h1>Confidant <span>Studio</span></h1>
+    <p>Build confidential reports, due-diligence packs, and NDA-bound deliverables — 100% offline, zero account, zero cloud. Nothing you type ever leaves your machine.</p>
+    <a class="free-link" href="https://neatlyhq.github.io/confidant-transmittal-sheet/" target="_blank">Try the free Confidential Transmittal Sheet Generator first →</a>
+  </header>
+
+  <div class="section">
+    <h2>Why "offline" isn't a nice-to-have here</h2>
+    <div class="diff-grid">
+      <div class="diff-card">
+        <h3>🔒 Real local PDF encryption</h3>
+        <p>Password-protect exported PDFs with real client-side encryption (Web Crypto API) — the password and the file never touch a server.</p>
+      </div>
+      <div class="diff-card">
+        <h3>📊 CSV → charts, rendered locally</h3>
+        <p>Import a CSV of financials or KPIs and get real bar charts rendered directly in your browser — no upload, no third-party charting API.</p>
+      </div>
+      <div class="diff-card">
+        <h3>🎨 Portable .json themes</h3>
+        <p>Save and share a report theme as a plain .json file. No account, no cloud sync, no vendor lock-in.</p>
+      </div>
+      <div class="diff-card">
+        <h3>🕶️ Redacted preview mode</h3>
+        <p>Auto-mask sensitive names and figures before a final export — built for showing a draft without leaking the real numbers.</p>
+      </div>
+      <div class="diff-card">
+        <h3>🗂️ Built for confidential work</h3>
+        <p>Positioned for NDA-bound documents, pre-M&A due diligence, and audit deliverables — not generic "ebook" templates.</p>
+      </div>
+      <div class="diff-card">
+        <h3>♾️ Works forever</h3>
+        <p>A one-time file on your machine. If we ever stop maintaining it, the tool you already have keeps working — no dependency on our servers staying up.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>How this compares to cloud ebook tools</h2>
+    <table class="vs-table">
+      <tr><th></th><th class="us">Confidant Studio</th><th>Sqribble</th><th>AI BookAgents</th></tr>
+      <tr><td>Account / login required</td><td class="us">No</td><td class="no">Yes</td><td class="no">Yes</td></tr>
+      <tr><td>Data leaves your browser</td><td class="us">Never</td><td class="no">Yes (cloud)</td><td class="no">Yes (cloud)</td></tr>
+      <tr><td>Local password-encrypted PDF</td><td class="us">Yes</td><td class="no">—</td><td class="no">—</td></tr>
+      <tr><td>Redacted preview mode</td><td class="us">Yes</td><td class="no">—</td><td class="no">—</td></tr>
+      <tr><td>Still works if the vendor shuts down</td><td class="us">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+    </table>
+    <p style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:10px">Verified against each vendor's public site, August 2026. Sqribble and AI BookAgents are trademarks of their respective owners.</p>
+  </div>
+
+  <div class="section">
+    <h2>Pick your tier</h2>
+    <div class="pricing-grid">
+      <div class="tier">
+        <div class="tag">Personal</div>
+        <h3>Personal</h3>
+        <div class="price">$67 <small>one-time</small></div>
+        <ul>
+          <li>Premium black+gold report templates</li>
+          <li>Live preview + real PDF export</li>
+          <li>Offline, zero account</li>
+        </ul>
+        <div class="buy-cta">
+          <a href="JVZOO_LINK_PERSONAL"><img src="JVZOO_IMG_PERSONAL" alt="Buy Personal" border="0" /></a>
+        </div>
+      </div>
+      <div class="tier">
+        <div class="tag">Commercial</div>
+        <h3>Commercial</h3>
+        <div class="price">$97 <small>one-time</small></div>
+        <ul>
+          <li>Everything in Personal</li>
+          <li>CSV import → live charts</li>
+          <li>Portable .json themes</li>
+          <li>Commercial use license</li>
+        </ul>
+        <div class="buy-cta">
+          <a href="JVZOO_LINK_COMMERCIAL"><img src="JVZOO_IMG_COMMERCIAL" alt="Buy Commercial" border="0" /></a>
+        </div>
+      </div>
+      <div class="tier featured">
+        <div class="tag">Most complete</div>
+        <h3>Agency</h3>
+        <div class="price">$197 <small>one-time</small></div>
+        <ul>
+          <li>Everything in Commercial</li>
+          <li>Real local PDF password encryption</li>
+          <li>Full confidential/NDA/due-diligence positioning</li>
+          <li>Agency use license</li>
+        </ul>
+        <div class="buy-cta">
+          <a href="JVZOO_LINK_AGENCY"><img src="JVZOO_IMG_AGENCY" alt="Buy Agency" border="0" /></a>
+        </div>
+      </div>
+      <div class="tier">
+        <div class="tag">Best value</div>
+        <h3>Bundle</h3>
+        <div class="price">$247 <small>one-time</small></div>
+        <ul>
+          <li>Everything in Agency</li>
+          <li>Redacted preview mode</li>
+          <li>Resale / white-label rights</li>
+        </ul>
+        <div class="buy-cta">
+          <a href="JVZOO_LINK_BUNDLE"><img src="JVZOO_IMG_BUNDLE" alt="Buy Bundle" border="0" /></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="who-for">
+    <h2>Who this is for</h2>
+    <p>Consultants, auditors, and advisory firms producing confidential reports, due-diligence packs, and audit deliverables for clients under NDA — who cannot structurally route that work through a cloud tool that requires a login and stores client data on someone else's server.</p>
+  </div>
+
+  <div class="lifetime-note">
+    <p style="font-size:12px;color:var(--text-dim)">The term "lifetime" applies to the lifetime of this product. The average lifetime of a software product of this nature and price point, and for which support is provided, is approximately 5 years.</p>
+  </div>
+
+  <footer>
+    <p>Disclaimer: Please note that this product does not provide any guarantee of income or success. The results achieved by the product owner or any other individuals mentioned are not indicative of future success or earnings. This website is not affiliated with FaceBook or any of its associated entities. Once you navigate away from FaceBook, the responsibility for the content and its usage lies solely with the user. All content on this website, including but not limited to text, images, and multimedia, is protected by copyright law and the Digital Millennium Copyright Act. Unauthorized copying, duplication, modification, or theft, whether intentional or unintentional, is strictly prohibited. Violators will be prosecuted to the fullest extent of the law.</p>
+    <p style="margin-top:12px">We want to clarify that JVZoo serves as the retailer for the products featured on this site. JVZoo® is a registered trademark of BBC Systems Inc., a Florida corporation located at 1809 E. Broadway Street, Suite 125, Oviedo, FL 32765, USA, and is used with permission. The role of JVZoo as a retailer does not constitute an endorsement, approval, or review of these products or any claims, statements, or opinions used in their promotion.</p>
+    <p style="margin-top:16px">© 2026 NeatlyHQ. All rights reserved.</p>
+  </footer>
+</div>
+
+<img src='JVZOO_PIXEL_PERSONAL' alt="Confidant Studio Personal" border="0" width='1' height='1' />
+<img src='JVZOO_PIXEL_COMMERCIAL' alt="Confidant Studio Commercial" border="0" width='1' height='1' />
+<img src='JVZOO_PIXEL_AGENCY' alt="Confidant Studio Agency" border="0" width='1' height='1' />
+<img src='JVZOO_PIXEL_BUNDLE' alt="Confidant Studio Bundle" border="0" width='1' height='1' />
+
+<script data-goatcounter="https://neatlyhq.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
