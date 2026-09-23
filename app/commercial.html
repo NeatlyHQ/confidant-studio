@@ -47,6 +47,18 @@ td.sensitive-cell{position:relative;}
 .redacted canvas{filter:blur(6px);}
 .hint{font-size:12px;color:var(--muted);}
 footer{max-width:1100px;margin:10px auto 30px;color:var(--muted);font-size:12px;text-align:center;}
+
+/* ===== Ed25519 license gate UI (added, independent of _k1/_k2 anti-tamper above) ===== */
+.lic-banner{max-width:1100px;margin:14px auto 0;padding:10px 16px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.4);color:#ffc46b;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.lic-banner.hidden{display:none;}
+.lic-banner button{font-size:12px;padding:6px 12px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(8,9,12,.72);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}
+.modal-overlay.hidden{display:none;}
+.modal-panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px 22px;max-width:480px;width:100%;}
+.modal-panel h2{margin:0 0 8px;font-size:15px;text-transform:none;letter-spacing:0;color:var(--text);}
+.modal-panel textarea{width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;resize:vertical;}
+.modal-actions{display:flex;gap:8px;margin-top:12px;}
+.hidden{display:none;}
 </style>
 </head>
 <body>
@@ -54,6 +66,7 @@ footer{max-width:1100px;margin:10px auto 30px;color:var(--muted);font-size:12px;
   <span class="logo-text" id="logoText">CONFIDENTIAL REPORT BUILDER</span>
   <span class="badge">100% offline · nothing leaves this browser</span>
 </header>
+<div class="lic-banner hidden" id="licBanner">Evaluation copy &mdash; every feature works, but exported PDFs carry a "DEMO EVALUATION COPY" watermark. <button id="licOpenBtn" type="button">Enter license key</button></div>
 <main>
 
 
@@ -133,6 +146,19 @@ footer{max-width:1100px;margin:10px auto 30px;color:var(--muted);font-size:12px;
 
 </main>
 <footer>All processing happens locally in your browser. No network calls are made.</footer>
+
+<div class="modal-overlay hidden" id="licOverlay" role="dialog" aria-modal="true" aria-labelledby="licTitle">
+  <div class="modal-panel">
+    <h2 id="licTitle">License Key</h2>
+    <p class="hint" style="margin:0 0 10px">Enter the key from your purchase email. It stays on this device only &mdash; nothing is sent anywhere.</p>
+    <textarea id="licInput" rows="5" style="font-family:monospace;font-size:11px;" placeholder="-----BEGIN CONFIDANTSTUDIO LICENSE-----&#10;...&#10;-----END CONFIDANTSTUDIO LICENSE-----" autocomplete="off" spellcheck="false"></textarea>
+    <p id="licMsg" class="msg" role="alert" aria-live="polite"></p>
+    <div class="modal-actions">
+      <button type="button" id="licApplyBtn">Unlock</button>
+      <button type="button" class="secondary" id="licCloseBtn">Continue evaluation</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /** @license
@@ -560,6 +586,88 @@ const _caps=(()=>{
 const _has=b=>(_caps&b)===b;
 /* ================================================================== */
 
+/* ---------------- license / evaluation gate (Ed25519, tier signed into payload) — independent layer, added on top of the _k1/_k2 anti-tamper check above, does not touch it ---------------- */
+let BUILD_TIER = 'commercial';
+const VENDOR_PUBLIC_B64 = "HhN46VCidb5m/NcOqVRj+k0dAGBDwueyK6nUMz7Bt/U=";
+const LIC_TIER_RANK = { personal: 1, commercial: 2, agency: 3, bundle: 4 };
+function _licB64ToBytes(b64) { try { return Uint8Array.from(atob(b64), c => c.charCodeAt(0)); } catch (e) { return null; } }
+async function verifyLicenseBlock(text) {
+  const m = String(text || '').trim().match(/^-----BEGIN CONFIDANTSTUDIO LICENSE-----([\s\S]*?)-----END CONFIDANTSTUDIO LICENSE-----$/);
+  if (!m) return null;
+  const body = m[1].replace(/\s+/g, '');
+  const dot = body.indexOf('.');
+  if (dot < 0) return null;
+  const payloadBytes = _licB64ToBytes(body.slice(0, dot));
+  const sig = _licB64ToBytes(body.slice(dot + 1));
+  if (!payloadBytes || !sig || sig.length !== 64) return null;
+  try {
+    const key = await crypto.subtle.importKey('raw', _licB64ToBytes(VENDOR_PUBLIC_B64), { name: 'Ed25519' }, false, ['verify']);
+    const ok = await crypto.subtle.verify({ name: 'Ed25519' }, key, sig, payloadBytes);
+    if (!ok) return null;
+    const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
+    if (payload.product !== 'ConfidantStudio') return null;
+    return payload;
+  } catch (e) { return null; }
+}
+function _licReadText() { try { return localStorage.getItem('confidantstudio_lictext') || null; } catch (e) { return null; } }
+function _licRequiredRank() { return Object.prototype.hasOwnProperty.call(LIC_TIER_RANK, BUILD_TIER) ? LIC_TIER_RANK[BUILD_TIER] : Infinity; }
+function _licTierRank(tier) { return Object.prototype.hasOwnProperty.call(LIC_TIER_RANK, tier) ? LIC_TIER_RANK[tier] : 0; }
+let LICENSED = false;
+let licPayload = null;
+async function refreshLicenseState() {
+  const text = _licReadText();
+  if (text) {
+    const payload = await verifyLicenseBlock(text);
+    const rank = payload ? _licTierRank(payload.tier) : 0;
+    if (payload && rank >= _licRequiredRank()) {
+      LICENSED = true; licPayload = payload;
+    } else {
+      LICENSED = false; licPayload = null;
+      try { localStorage.removeItem('confidantstudio_lictext'); } catch (e) { /* fail closed if storage is unavailable */ }
+    }
+  } else {
+    LICENSED = false; licPayload = null;
+  }
+  document.body.classList.toggle('unlicensed', !LICENSED);
+  const banner = document.getElementById('licBanner'); if (banner) banner.classList.toggle('hidden', LICENSED);
+}
+function licensed() { return LICENSED; }
+
+function openLic() { document.getElementById('licOverlay').classList.remove('hidden'); document.getElementById('licMsg').classList.add('hidden'); document.getElementById('licInput').focus(); }
+function closeLic() { document.getElementById('licOverlay').classList.add('hidden'); }
+async function applyLicense() {
+  const raw = document.getElementById('licInput').value.trim();
+  const msgEl = document.getElementById('licMsg');
+  const payload = await verifyLicenseBlock(raw);
+  const needed = _licRequiredRank();
+  if (!payload) {
+    msgEl.classList.remove('hidden'); msgEl.className = 'msg err';
+    msgEl.textContent = 'Invalid license — please copy the whole block exactly from your purchase email.';
+    return;
+  }
+  const rank = _licTierRank(payload.tier);
+  if (rank < needed) {
+    msgEl.classList.remove('hidden'); msgEl.className = 'msg err';
+    msgEl.textContent = 'That license is for a different edition (' + payload.tier + '). Download the matching edition file from your purchase receipt.';
+    return;
+  }
+  try { localStorage.setItem('confidantstudio_lictext', raw); } catch (e) {
+    msgEl.classList.remove('hidden'); msgEl.className = 'msg err';
+    msgEl.textContent = 'License verified, but browser storage is unavailable; it was not saved.';
+    return;
+  }
+  await refreshLicenseState();
+  closeLic();
+  msg('pdfMsg', 'ok', 'Unlocked. Thank you!');
+}
+function initLicenseUI() {
+  const openBtn = document.getElementById('licOpenBtn'); if (openBtn) openBtn.addEventListener('click', openLic);
+  const closeBtn = document.getElementById('licCloseBtn'); if (closeBtn) closeBtn.addEventListener('click', closeLic);
+  const applyBtn = document.getElementById('licApplyBtn'); if (applyBtn) applyBtn.addEventListener('click', applyLicense);
+  refreshLicenseState();
+}
+/* ================================================================== */
+
 /* ---------------- bounds (file size / row count / logo length) ---------------- */
 const MAX_CSV_BYTES=10*1024*1024;    // 10 MB
 const MAX_THEME_BYTES=256*1024;      // 256 KB
@@ -588,6 +696,7 @@ function parseCSV(text){
       else { field+=c; i++; }
     }
   }
+  if(inQuotes) throw new Error('unterminated-quote');
   if(field!==''||row.length>0){ row.push(field.trim()); if(row.length>1||row[0]!=='') rows.push(row); }
   return rows;
 }
@@ -902,7 +1011,11 @@ async function encryptState(pass){
     numericCols:[...state.numericCols],
     theme:currentTheme()
   });
-  return encryptBytes(pass, new TextEncoder().encode(payload));
+  const plainBytes = new TextEncoder().encode(payload);
+  // Reject before PBKDF2/AES allocation and encryption, not after it.
+  // AES-GCM adds 16 bytes; the envelope adds 28 bytes.
+  if(plainBytes.byteLength + 44 > MAX_LOCK_BYTES) throw new Error('lock-too-big');
+  return encryptBytes(pass, plainBytes);
 }
 async function decryptState(bytes,pass){
   const pt=await decryptBytes(pass,bytes);
@@ -925,7 +1038,7 @@ $('lockBtn').addEventListener('click', async ()=>{
     }
     download(new Blob([blob]),'report.crlk');
     msg('lockMsg','ok','Report encrypted and downloaded as report.crlk');
-  }catch(e){ msg('lockMsg','err','Encryption failed: '+(e&&e.message?e.message:'unknown error')); }
+  }catch(e){ msg('lockMsg','err', e&&e.message==='lock-too-big' ? `Report too large to lock as a portable file (max ${(MAX_LOCK_BYTES/1024/1024)|0} MB). Trim the data first.` : 'Encryption failed: '+(e&&e.message?e.message:'unknown error')); }
 });
 $('unlockBtn').addEventListener('click', ()=>{
   clearMsg('lockMsg'); clearMsg('csvMsg');
@@ -978,6 +1091,16 @@ function drawPdfPageChrome(doc, W, H, title, pageNum){
   doc.text('Page '+pageNum, W/2, H-24, {align:'center'});
 }
 
+function stampEvalWatermark(doc, W, H){
+  try{
+    doc.saveGraphicsState();
+    doc.setGState(new doc.GState({opacity:0.20}));
+    doc.setTextColor(200,60,50); doc.setFont('helvetica','bold'); doc.setFontSize(40);
+    doc.text('DEMO EVALUATION COPY', W/2, H/2, {align:'center', angle:35});
+    doc.restoreGraphicsState();
+  }catch(e){ /* GState unsupported in this jsPDF build — skip watermark rather than crash export */ }
+}
+
 function buildReportPDF(){
   if(typeof window.jspdf==='undefined'||typeof window.jspdf.jsPDF!=='function')
     throw new Error('pdf-engine-unavailable');
@@ -1005,13 +1128,13 @@ function buildReportPDF(){
   doc.text(dateStr, W/2, H-120, {align:'center'});
   doc.setFontSize(8); doc.setTextColor(140,140,146);
   doc.text('Generated 100% locally — this document never left your browser.', W/2, H-70, {align:'center'});
-  if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H);
+  if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H); if(!licensed()) stampEvalWatermark(doc, W, H);
 
   /* data page: table */
   if(state.headers.length){
     doc.addPage();
     drawPdfPageChrome(doc, W, H, title, doc.internal.getNumberOfPages());
-    if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H);
+    if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H); if(!licensed()) stampEvalWatermark(doc, W, H);
     let y = 110;
     doc.setTextColor(...INK); doc.setFont('helvetica','bold'); doc.setFontSize(14);
     doc.text('Report Data', 50, y); y += 22;
@@ -1060,7 +1183,7 @@ function buildReportPDF(){
     state.rows.forEach((r,ri)=>{
       if(y > H - 60){
         doc.addPage(); drawPdfPageChrome(doc, W, H, title, doc.internal.getNumberOfPages());
-        if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H);
+        if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H); if(!licensed()) stampEvalWatermark(doc, W, H);
         y = 60;
         drawHeaderRow(); // repeat column headers so continuation pages stay readable
       }
@@ -1079,7 +1202,7 @@ function buildReportPDF(){
   if(state.rows.length && state.numericCols.size){
     doc.addPage();
     drawPdfPageChrome(doc, W, H, title, doc.internal.getNumberOfPages());
-    if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H);
+    if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H); if(!licensed()) stampEvalWatermark(doc, W, H);
     let y = 110;
     doc.setTextColor(...INK); doc.setFont('helvetica','bold'); doc.setFontSize(14);
     doc.text('Charts', 50, y); y += 20;
@@ -1097,7 +1220,7 @@ function buildReportPDF(){
         doc.addImage(barImg, 'JPEG', 50, y, chartW, chartH);
         y += chartH + 24;
       }catch(e){ /* canvas tainted in exotic embeddings — table already carries the data */ }
-      if(y + chartH > H - 60){ doc.addPage(); drawPdfPageChrome(doc, W, H, title, doc.internal.getNumberOfPages()); if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H); y = 110; }
+      if(y + chartH > H - 60){ doc.addPage(); drawPdfPageChrome(doc, W, H, title, doc.internal.getNumberOfPages()); if(_caps===0 && typeof stampWatermark==='function') stampWatermark(doc, W, H); if(!licensed()) stampEvalWatermark(doc, W, H); y = 110; }
       try{
         const lineImg = $('lineChart').toDataURL('image/jpeg',0.92);
         doc.addImage(lineImg, 'JPEG', 50, y, chartW, chartH);
@@ -1122,10 +1245,10 @@ $('exportPdfBtn').addEventListener('click', async ()=>{
     const pdfBlob = doc.output('blob');
     if(locked){
       const bytes = await encryptBytes(pass, await pdfBlob.arrayBuffer());
-      download(new Blob([bytes]), 'report.pdf.lock');
+      download(new Blob([bytes]), licensed() ? 'report.pdf.lock' : 'report-DEMO.pdf.lock');
       msg('pdfMsg','ok','Password-protected report exported as report.pdf.lock');
     } else {
-      download(pdfBlob, 'report.pdf');
+      download(pdfBlob, licensed() ? 'report.pdf' : 'report-DEMO.pdf');
       msg('pdfMsg','ok','Report exported as report.pdf');
     }
   }catch(e){
@@ -1140,6 +1263,7 @@ $('exportPdfBtn').addEventListener('click', async ()=>{
 /* ---------------- init ---------------- */
 window.addEventListener('resize',()=>{ if(typeof drawBarChart==='function') drawBarChart(); if(typeof drawLineChart==='function') drawLineChart(); });
 applyThemeToUI();
+initLicenseUI();
 </script>
 <script data-goatcounter="https://neatlyhq-goatcounter.neatlyshop-a96.workers.dev/count" async src="https://neatlyhq-goatcounter.neatlyshop-a96.workers.dev/count.js"></script>
 </body>
